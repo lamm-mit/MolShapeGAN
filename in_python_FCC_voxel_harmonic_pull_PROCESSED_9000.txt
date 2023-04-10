@@ -1,0 +1,287 @@
+ 
+#dimension	3
+boundary	p p p
+#boundary	s s s
+#boundary	f f f
+
+units               real
+#atom_style          atomic
+atom_style	bond
+#atom_style	molecular
+
+read_data	./data_harmonic_9000.coor
+
+##########################################
+# LJ potentials
+
+#pair_style	lj/cut 1.12246
+#pair_coeff	* * 1.0 1.0 1.12246
+
+
+# Dreiding potential information
+neighbor	4. bin
+#neighbor 	10.0 bin
+
+#neigh_modify	every 10 one 30000
+neigh_modify	every 10 #delay 10
+
+bond_style      harmonic
+bond_coeff    1 5.00000 3.50000
+
+
+#pair_style harmonic/cut
+#pair_coeff * * 0.2 2.0
+
+
+#angle_style     harmonic
+#angle_coeff	1 100 180.
+
+#dihedral_style	multi/harmonic
+#dihedral_coeff	1 1.73 -4.49 0.776 6.99 0.0
+
+pair_style	lj/cut 3.50000
+pair_coeff * * 1.0 3.1181455134911875  #eps sigma LJ cutuff (if provided)
+
+
+#  
+#pair_coeff	1 1 1. 1.  #eps sigma LJ cutuff (if provided)
+#pair_coeff	1 2 1. 1.
+#pair_coeff	2 2 1. 1.
+
+#pair_coeff	2 3 1. 1.
+#pair_coeff	1 3 1. 1.
+
+#pair_coeff	3 3 1. 1. 0. # low cutoff - no interactions between atoms within fibers
+
+
+#####################################
+
+#
+thermo 100
+
+#########################################
+# define groups
+#########################################
+
+region	        1 block INF INF INF INF INF  49.54772721475249 
+group		lower region 1
+
+region	        2 block INF INF INF INF 81.62058069535207 INF
+group		upper region 2
+
+#region		3 block INF 10 INF INF INF INF
+#group		left region 3
+
+#region		4 block 118 INF INF INF  INF INF
+#group		right region 4
+
+group		boundary union lower upper #right left
+group		mobile subtract all boundary
+
+fix		200 boundary setforce 0. 0. 0.
+#fix		21 mobile setforce NULL NULL 0.
+#run		10
+
+velocity	upper set 0.0 0.0 0.0
+velocity	lower set 0.0 0.0 0.0
+
+
+###########################################
+#STEP 0:   MINIMIZE..  
+###########################################
+min_style cg
+minimize        1e-8 1e-8 1000 1000
+
+
+###########################################
+#STEP 1:   NVE
+###########################################
+
+#velocity	mobile create 10  838723  
+velocity	all create 10 838723  
+
+velocity	upper set 0.0 0.0 0.0
+velocity	lower set 0.0 0.0 0.0
+
+timestep     0.075
+
+#fix		1 all nvt temp 10. 10.0 20.0
+fix		1 all nve  
+
+
+dump 		ave_geom all custom 1000 ./LAMMPS_OUT_9000/dump_initial.geom id x y z type  
+dump_modify 	ave_geom sort id
+
+compute          1 all stress/atom NULL
+variable 	sxx atom c_1[1]
+variable         syy atom c_1[2]
+variable         szz atom c_1[3]
+variable         sxy atom c_1[4]
+variable         sxz atom c_1[5]
+variable         syz atom c_1[6]
+variable mises atom "sqrt(((v_sxx-v_syy)^2 + (v_sxx - v_szz)^2 + (v_syy -v_szz)^2 + 6*(v_sxy^2 + v_sxz^2 + v_syz^2)) / 2)"
+
+fix syy all ave/atom 10 20 1000  v_syy
+fix szz all ave/atom 10 20 1000  v_szz
+fix sxy all ave/atom 10 20 1000  v_sxy
+fix sxz all ave/atom 10 20 1000  v_sxz
+fix syz all ave/atom 10 20 1000  v_syz
+fix mises all ave/atom 10 20 1000  v_mises
+#dump ave_sxx all custom 200000 dump.1 id x y z f_sxx f_syy f_szz f_sxy f_sxz f_syz f_mise
+#dump ave_sxx 	    all    custom 1000 ./LAMMPS_OUT_9000/dump_small_all.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_sxx v_mises
+
+compute        peratom all pe/atom
+
+
+dump ave_sxx_mobile all custom 1000 ./LAMMPS_OUT_9000/dump_small_all.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_sxx v_mises c_peratom  
+dump_modify ave_sxx_mobile sort id
+
+dump ave_sxx_mobile_2 mobile custom 1000 ./LAMMPS_OUT_9000/dump_small_mobile.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_sxx v_mises c_peratom  
+dump_modify ave_sxx_mobile_2 sort id
+
+
+
+run		30000
+
+###########################################
+#STEP 2:   NOW PULLING 
+###########################################
+
+
+velocity	upper set 0 0 0.00025
+velocity	lower set 0 0 -0.00025
+
+#velocity	mobile ramp vy 0.0 0.3 y 1.25 38.75 sum yes
+
+variable 	 disp equal "ramp(0, 37500.0)" 
+variable 	 ssxx equal "-pxx" 
+variable 	 ssyy equal "-pyy" 
+variable 	 sszz equal "-pzz"
+variable 	 ssxy equal "-pxy" 
+variable 	 ssxz equal "-pxz" 
+variable 	 ssyz equal "-pyz" 
+
+
+fix          def1 mobile print 1000 "${disp} ${ssxx} ${ssyy} ${sszz} ${ssxy} ${ssxz} ${ssyz} " file ./LAMMPS_OUT_9000//sscurve.dat screen no 
+
+
+run		100000  
+
+
+
+velocity	lower set 0 0 0
+velocity	upper set 0 0 0
+ 
+min_style cg
+minimize        1e-8 1e-8 1000 10000
+
+###################FINAL STRESS FIELD#####################################
+dump stressfinal all custom 1 ././LAMMPS_OUT_9000//dump_final.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_mises
+####################################################################
+
+run 0
+
+###################FINAL STRESS FIELD ONLY MOBILE#####################################
+dump stressfinal_mobile mobile custom 1 ./LAMMPS_OUT_9000/dump_final_mobile.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_mises
+####################################################################
+
+run 0
+
+stop_simulation
+
+
+
+
+
+
+
+
+
+
+
+undump 		ave_geom 
+ 
+# initial velocities
+dump		2 all image 1000 ./LAMMPS_OUT_9000/image_small.*.jpg type type &
+		zoom 1.6 adiam 1.5 
+#dump 		dmpvtk all xyz 100 ./LAMMPS_OUT_9000/XYZ_image_small.*.xyz  
+#dump 		dmpvtk all xyz 100 ./LAMMPS_OUT_9000/XYZ_image_small.*.xyz  
+
+		
+dump_modify	2 pad 4
+ 
+compute	  	new all temp
+
+
+#ramp args = vdim vlo vhi dim clo chi
+#  vdim = vx or vy or vz
+#  vlo,vhi = lower and upper velocity value (velocity units)
+#  dim = x or y or z
+#  clo,chi = lower and upper coordinate bound (distance units)
+  
+
+# fixes
+
+fix 303 all deform 1 x erate 0.075 remap x
+ 
+# run
+
+run		1000
+
+
+unfix 303
+
+#MINIMIZE..  
+min_style cg
+minimize 1e-8 1e-8 10000 10000
+
+#2: 1:44
+#12: 
+ 
+# Compute atomic stress
+compute          1 all stress/atom NULL
+variable 	sxx atom c_1[1]
+variable         syy atom c_1[2]
+variable         szz atom c_1[3]
+variable         sxy atom c_1[4]
+variable         sxz atom c_1[5]
+variable         syz atom c_1[6]
+variable mises atom "sqrt(((v_sxx-v_syy)^2 + (v_sxx - v_szz)^2 + (v_syy -v_szz)^2 + 6*(v_sxy^2 + v_sxz^2 + v_syz^2)) / 2)"
+
+
+#compute 4 all bond/local   eng
+#dump 1 all local 1000 tmp.dump index c_1[1] c_1[2] c_1[3] c_2[1] c_2[2]
+  
+fix syy all ave/atom 10 20 1000  v_syy
+fix szz all ave/atom 10 20 1000  v_szz
+fix sxy all ave/atom 10 20 1000  v_sxy
+fix sxz all ave/atom 10 20 1000  v_sxz
+fix syz all ave/atom 10 20 1000  v_syz
+fix mises all ave/atom 10 20 1000  v_mises
+#dump ave_sxx all custom 200000 dump.1 id x y z f_sxx f_syy f_szz f_sxy f_sxz f_syz f_mise
+#dump ave_sxx 	    all    custom 1000 ./LAMMPS_OUT_9000/dump_small_all.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_sxx v_mises
+
+compute        peratom all pe/atom
+
+
+dump ave_sxx_mobile all custom 100 ./LAMMPS_OUT_9000/dump_small_mobile.stress id x y z v_sxx v_syy v_szz v_sxy v_sxz v_syz v_sxx v_mises c_peratom 
+dump_modify ave_sxx_mobile sort id
+
+ 
+thermo		1000
+#thermo_modify	temp new
+
+ 
+
+
+
+#dump		200 all image 1000 ./LAMMPS_OUT_9000/image_stress_small.*.jpg color vx &
+#		zoom 1.6 adiam 1.5
+#dump_modify	200 pad 4
+
+
+run		100
+
+ 
+
+
