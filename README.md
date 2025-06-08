@@ -8,6 +8,8 @@ mbuehler@MIT.EDU
 
 ### Generative multiscale analysis of de novo proteome-inspired molecular structures and nanomechanical optimization using a VoxelPerceiver transformer model
 
+<img width="1692" alt="image" src="https://github.com/user-attachments/assets/a8511008-f8aa-4a01-a705-ecbc1e153919" />
+
 Reference:
 ```
 Zhenze Yang, Yu-Chuan Hsu, Markus J. Buehler, "Generative multiscale analysis of de novo proteome-inspired molecular structures and nanomechanical optimization using a VoxelPerceiver transformer model," Journal of the Mechanics and Physics of Solids, Volume 170, January 2023, 105098.
@@ -18,4 +20,4 @@ Use the atached notebook to first train the GAN model.
 
 ## Additive manufacturing
 
-![Uploading image.png…]()
+<img width="1665" alt="image" src="https://github.com/user-attachments/assets/bbcfe8e3-c8fe-4dbd-a4af-f714f9844c06" />
